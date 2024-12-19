@@ -1,0 +1,25 @@
+Package: MicrobiomeGS3
+Type: Package
+Title: Analysis and simulation of genome- & ecosystem-scale microbial metabolism
+Version: 0.1.0
+Authors@R:
+    c(person(given = "Silvio",
+             family = "Waschina",
+             role = c("aut","cre"),
+             email = "s.waschina@nutrinf.uni-kiel.de",
+             comment = c(ORCID = "0000-0002-6290-3593")))
+Description: a.o. Community-FBA and functions to specifically analysis gapseq models and gapseq model collections.
+Depends: 
+    R (>= 4.0.0),
+    data.table (>= 1.13.4),
+    cobrar (>= 0.1.1),
+    stringr (>= 1.4.0)
+biocViews:
+Imports:
+    parallel
+Remotes:
+    Waschina/cobrar
+License: GNU General Public License v3.0
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.3.2
