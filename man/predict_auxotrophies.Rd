@@ -7,8 +7,9 @@
 predict_auxotrophies(
   mod,
   compounds = NULL,
-  min.growth = 0.005,
-  min.growth.fraction = 0.05,
+  min.growth = 1e-06,
+  min.growth.fraction = 1e-04,
+  open.bounds = TRUE,
   multi.thread = TRUE,
   ncores = NULL
 )
@@ -25,6 +26,10 @@ external compartment is required.}
 \item{min.growth.fraction}{double. Minimum growth fraction of the model
 without the compound relative to the original model that is required to call
 the model prototrophic for the compound.}
+
+\item{open.bounds}{logigal. If TRUE, the lower bounds of all Exchange
+reactions are set to be open (i.e., `-COBRAR_SETTINGS("MAXIMUM")`), except
+for the exchange reaction of the metabolite of interest.}
 
 \item{multi.thread}{logical. Indicating if parallel processing of models is
 used.}

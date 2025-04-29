@@ -12,6 +12,9 @@
 #' @param min.growth.fraction double. Minimum growth fraction of the model
 #' without the compound relative to the original model that is required to call
 #' the model prototrophic for the compound.
+#' @param open.bounds logigal. If TRUE, the lower bounds of all Exchange
+#' reactions are set to be open (i.e., `-COBRAR_SETTINGS("MAXIMUM")`), except
+#' for the exchange reaction of the metabolite of interest.
 #' @param multi.thread logical. Indicating if parallel processing of models is
 #' used.
 #' @param ncores integer. Number of CPUs that are used in case of parallel
@@ -24,8 +27,9 @@
 #' @import parallel
 #'
 #' @export
-predict_auxotrophies <- function(mod, compounds = NULL, min.growth = 0.005,
-                                 min.growth.fraction = 0.05,
+predict_auxotrophies <- function(mod, compounds = NULL, min.growth = 1e-6,
+                                 min.growth.fraction = 1e-4,
+                                 open.bounds = TRUE,
                                  multi.thread = TRUE,
                                  ncores = NULL) {
 
@@ -83,6 +87,14 @@ predict_auxotrophies <- function(mod, compounds = NULL, min.growth = 0.005,
 
   clusterExport(cl, c("compounds","min.growth","min.growth.fraction"),
                 envir = environment())
+
+  if(open.bounds) {
+    mod <- lapply(mod, function(modi) {
+      ind_ex <- react_pos(modi, findExchReact(modi)$react_id)
+      modi@lowbnd[ind_ex] <- -COBRAR_SETTINGS("MAXIMUM")
+      return(modi)
+    })
+  }
 
   auxores <- parLapply(cl, mod, fun = worker_auxo_pred)
   stopCluster(cl)
