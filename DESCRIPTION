@@ -1,7 +1,7 @@
 Package: MicrobiomeGS3
 Type: Package
 Title: Analysis and simulation of genome- & ecosystem-scale microbial metabolism
-Version: 0.1.0
+Version: 0.2.0
 Authors@R:
     c(person(given = "Silvio",
              family = "Waschina",
