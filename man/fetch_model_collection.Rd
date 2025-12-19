@@ -8,8 +8,6 @@ fetch_model_collection(
   model.dir,
   IDs = NULL,
   file.type = "model",
-  subset = NULL,
-  entries = NULL,
   multi.thread = TRUE,
   ncores = NULL
 )
@@ -25,13 +23,6 @@ retrieved.}
 \item{file.type}{character. Select which gapseq output file should be read.
 One of 'model' (gap-filled model), 'draft' (draft network), 'reactions',
 'pathways', 'transporters', 'medium' (predicted growth medium).}
-
-\item{subset}{integer. For testing purposes you can choose the maximum number
-of model files to be read.}
-
-\item{entries}{In case 'file.type' is "pathways" or "reactions", the argument
-can be used to limit the output to specific pathways or reactions. If `NULL`,
-all entries are returned.}
 
 \item{multi.thread}{logical. Indicating if parallel processing of models is
 used.}

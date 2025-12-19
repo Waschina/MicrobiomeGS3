@@ -24,7 +24,7 @@
 #' Entry of 1 indicates prototrophy and 0 auxotrophy.
 #'
 #' @import cobrar
-#' @import parallel
+#' @importFrom mcprogress pmclapply
 #'
 #' @export
 predict_auxotrophies <- function(mod, compounds = NULL, min.growth = 1e-6,
@@ -55,7 +55,7 @@ predict_auxotrophies <- function(mod, compounds = NULL, min.growth = 1e-6,
   if(!is.null(ncores))
     n.cores <- ncores
   n.cores <- min(c(n.cores, length(mod)))
-  cl <- makeCluster(max(c(1,n.cores)))
+  # cl <- makeCluster(max(c(1,n.cores)))
 
   if(is.null(compounds) || compounds[1] == "amino acids") {
     compounds <- c(Ala = "cpd00035",
@@ -85,9 +85,6 @@ predict_auxotrophies <- function(mod, compounds = NULL, min.growth = 1e-6,
   if(is.null(names(compounds)))
     names(compounds) <- compounds
 
-  clusterExport(cl, c("compounds","min.growth","min.growth.fraction"),
-                envir = environment())
-
   if(open.bounds) {
     mod <- lapply(mod, function(modi) {
       ind_ex <- react_pos(modi, findExchReact(modi)$react_id)
@@ -95,9 +92,23 @@ predict_auxotrophies <- function(mod, compounds = NULL, min.growth = 1e-6,
       return(modi)
     })
   }
+  if("cobrarCPLEX" %in% rownames(utils::installed.packages())) {
+    require(cobrarCPLEX)
+    COBRAR_SETTINGS("SOLVER","cplex")
+    okcode   <- c(1,2)
+  } else {
+    COBRAR_SETTINGS("SOLVER","glpk")
+    okcode   <- c(2,5)
+  }
 
-  auxores <- parLapply(cl, mod, fun = worker_auxo_pred)
-  stopCluster(cl)
+  auxores <- pmclapply(mod, FUN = worker_auxo_pred,
+                       mc.cores = n.cores, mc.preschedule = TRUE,
+                       compounds = compounds,
+                       min.growth = min.growth,
+                       min.growth.fraction = min.growth.fraction,
+                       title = paste0("Predicting auxotrophies"))
+
+  names(auxores) <- names(mod)
 
   if(single_mode == FALSE)
     return(auxores)
@@ -417,7 +428,13 @@ get_metabolite_production_capacity <- function(mod, met) {
 #------------------------------------------------------------------------------#
 
 #' @import cobrar
-worker_auxo_pred <- function(x) {
+worker_auxo_pred <- function(mod_i,
+                             compounds,
+                             min.growth,
+                             min.growth.fraction,
+                             env) {
+  #xcp <- env$mod[[i]]
+
   if("cobrarCPLEX" %in% rownames(utils::installed.packages())) {
     require(cobrarCPLEX)
     COBRAR_SETTINGS("SOLVER","cplex")
@@ -426,35 +443,68 @@ worker_auxo_pred <- function(x) {
     COBRAR_SETTINGS("SOLVER","glpk")
     okcode   <- c(2,5)
   }
-  # COBRAR_SETTINGS("SOLVER","glpk")
-  # okcode   <- c(2,5)
+  #COBRAR_SETTINGS("SOLVER","glpk")
+  okcode   <- c(2,5)
   # init output
   auxo_out <- rep(NA_real_, length(compounds))
   names(auxo_out) <- names(compounds)
 
+  # use warm start
+  LPprob <- new(paste0("LPproblem_",COBRAR_SETTINGS("SOLVER")),
+                name = paste0("LP_", mod_i@mod_id),
+                method = COBRAR_SETTINGS("METHOD"))
+
+  loadLPprob(LPprob,
+             nCols = react_num(mod_i),
+             nRows = met_num(mod_i)+constraint_num(mod_i),
+             mat   = rbind(mod_i@S, mod_i@constraints@coeff),
+             ub    = ifelse(abs(mod_i@uppbnd)>COBRAR_SETTINGS("MAXIMUM"),
+                            sign(mod_i@uppbnd)*COBRAR_SETTINGS("MAXIMUM"),
+                            mod_i@uppbnd),
+             lb    = ifelse(abs(mod_i@lowbnd)>COBRAR_SETTINGS("MAXIMUM"),
+                            sign(mod_i@lowbnd)*COBRAR_SETTINGS("MAXIMUM"),
+                            mod_i@lowbnd),
+             obj   = mod_i@obj_coef,
+             rlb   = c(rep(0, met_num(mod_i)),
+                       mod_i@constraints@lb),
+             rtype = c(rep("E", met_num(mod_i)),
+                       mod_i@constraints@rtype),
+             lpdir = substr(mod_i@obj_dir,1,3),
+             rub   = c(rep(NA, met_num(mod_i)),
+                       mod_i@constraints@ub),
+             ctype = NULL
+  )
+
   # get orig growth rate
-  m0_growth <- fba(x)@obj
+  lp_ok   <- solveLp(LPprob)
+  m0_growth <- getObjValue(LPprob)
+
   if(m0_growth < min.growth) {
-    warning(paste0("Model ('",x@mod_id,"') has a too low or zero growth rate."))
+    warning(paste0("Model ('",mod_i@mod_id,"') has a too low or zero growth rate."))
     return(auxo_out)
   }
 
   # checking auxotrophies
-  for(i in 1:length(compounds)) {
-    imet <- compounds[i]
+  for(j in 1:length(compounds)) {
+    imet <- compounds[j]
     ex_id <- paste0("EX_",imet,"_e0")
-    if(ex_id %in% x@react_id) {
-      mod_tmp <- changeBounds(x, ex_id, lb = 0)
-      sol_tmp <- fba(mod_tmp)
-      m1_growth <- sol_tmp@obj
-      auxo_out[i] <- m1_growth / m0_growth
+    ex_ind <- react_pos(mod_i, ex_id)
+    if(!is.na(ex_ind)) {
+      bu_lp <- mod_i@lowbnd[ex_ind]
+      bu_up <- mod_i@uppbnd[ex_ind]
+      bu_objc <- mod_i@obj_coef[ex_ind]
+
+      setColsBndsObjCoefs(LPprob, ex_ind, lb = 0, ub = bu_up, obj_coef = bu_objc)
+      lp_ok   <- solveLp(LPprob)
+      m1_growth <- getObjValue(LPprob)
+      auxo_out[j] <- m1_growth / m0_growth
+
+      setColsBndsObjCoefs(LPprob, ex_ind, lb = bu_lp, ub = bu_up, obj_coef = bu_objc)
     } else {
-      auxo_out[i] <- 1
+      auxo_out[j] <- 1
     }
   }
-
-  rm(mod_tmp, sol_tmp, imet, m1_growth)
-
+  rm(LPprob)
   auxo_out <- ifelse(auxo_out >= min.growth.fraction, 1, 0)
 
   return(auxo_out)
