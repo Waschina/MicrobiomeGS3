@@ -454,7 +454,7 @@ worker_auxo_pred <- function(mod_i,
                 name = paste0("LP_", mod_i@mod_id),
                 method = COBRAR_SETTINGS("METHOD"))
 
-  loadLPprob(LPprob,
+  cobrar:::loadLPprob(LPprob,
              nCols = react_num(mod_i),
              nRows = met_num(mod_i)+constraint_num(mod_i),
              mat   = rbind(mod_i@S, mod_i@constraints@coeff),
@@ -476,8 +476,8 @@ worker_auxo_pred <- function(mod_i,
   )
 
   # get orig growth rate
-  lp_ok   <- solveLp(LPprob)
-  m0_growth <- getObjValue(LPprob)
+  lp_ok   <- cobrar:::solveLp(LPprob)
+  m0_growth <- cobrar:::getObjValue(LPprob)
 
   if(m0_growth < min.growth) {
     warning(paste0("Model ('",mod_i@mod_id,"') has a too low or zero growth rate."))
@@ -494,12 +494,12 @@ worker_auxo_pred <- function(mod_i,
       bu_up <- mod_i@uppbnd[ex_ind]
       bu_objc <- mod_i@obj_coef[ex_ind]
 
-      setColsBndsObjCoefs(LPprob, ex_ind, lb = 0, ub = bu_up, obj_coef = bu_objc)
-      lp_ok   <- solveLp(LPprob)
-      m1_growth <- getObjValue(LPprob)
+      cobrar:::setColsBndsObjCoefs(LPprob, ex_ind, lb = 0, ub = bu_up, obj_coef = bu_objc)
+      lp_ok   <- cobrar:::solveLp(LPprob)
+      m1_growth <- cobrar:::getObjValue(LPprob)
       auxo_out[j] <- m1_growth / m0_growth
 
-      setColsBndsObjCoefs(LPprob, ex_ind, lb = bu_lp, ub = bu_up, obj_coef = bu_objc)
+      cobrar:::setColsBndsObjCoefs(LPprob, ex_ind, lb = bu_lp, ub = bu_up, obj_coef = bu_objc)
     } else {
       auxo_out[j] <- 1
     }

@@ -10,3 +10,4 @@ config.log
 config.status
 docs/
 pkgdown/
+.positai
